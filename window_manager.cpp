@@ -15,7 +15,7 @@ WindowManager::WindowManager(int width, int height, const char* title) : width(w
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
   
 
-
+  glfwWindowHint(GLFW_DECORATED,GLFW_FALSE);
   window = glfwCreateWindow(width, height, title, nullptr, nullptr);
 
   if (!window)

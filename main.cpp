@@ -16,14 +16,53 @@ static void error_callback(int error, const char* description)
     std::cerr << "glfw error " << error << " : " << description << std::endl;
 }
 
-void draw(uint8_t* pixel, int width, int height) {
+void draw(uint8_t* pixel, int width, int height, int rank ) {
+  // get universe size, assuming 2x2 
+  int u_height = height * 2;
+  int u_width = width * 2;
+
+
+
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x){
       size_t idx = (static_cast<size_t>(y) * width + x) * 4;
-      pixel[idx + 0] = static_cast<uint8_t>(x * 255 / width);
-      pixel[idx + 1] = static_cast<uint8_t>(y * 255 / height);
-      pixel[idx + 2] = 128;
-      pixel[idx + 3] = 255;
+      if (rank == 0){
+        // top left, no offset 
+        pixel[idx + 0] = static_cast<uint8_t>(x * 255 / u_width);
+        pixel[idx + 1] = static_cast<uint8_t>(y * 255 / u_height);
+        pixel[idx + 2] = 128;
+        pixel[idx + 3] = 255;
+      }
+      else if (rank == 1) {
+        // top right, offset width 
+        pixel[idx + 0] = static_cast<uint8_t>((x + width) * 255 / u_width);
+        pixel[idx + 1] = static_cast<uint8_t>(y * 255 / u_height);
+        pixel[idx + 2] = 128;
+        pixel[idx + 3] = 255;
+      }
+      else if (rank == 2) {
+        // bottom left, offset height 
+        pixel[idx + 0] = static_cast<uint8_t>(x * 255 / u_width);
+        pixel[idx + 1] = static_cast<uint8_t>((y + height) * 255 / u_height);
+        pixel[idx + 2] = 128;
+        pixel[idx + 3] = 255;
+      }
+      
+      else if (rank == 3) {
+        // bottom right, offset both
+        
+        pixel[idx + 0] = static_cast<uint8_t>((x + width) * 255 / u_width);
+        pixel[idx + 1] = static_cast<uint8_t>((y + height) * 255 / u_height);
+        pixel[idx + 2] = 128;
+        pixel[idx + 3] = 255;
+      }
+      
+      else {
+        pixel[idx + 0] = static_cast<uint8_t>(x * 255 / u_width);
+        pixel[idx + 1] = static_cast<uint8_t>(y * 255 / u_height);
+        pixel[idx + 2] = 128;
+        pixel[idx + 3] = 255;
+      }
     }
   }
 }
@@ -36,7 +75,7 @@ int main(int argc, char** argv)
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
   #else 
-    int rank = 0, size = 1;
+    int rank = 1, size = 1;
   #endif 
   std::cout << "Hello from process " << rank << " of " << size << "\n";
 
@@ -118,7 +157,7 @@ int main(int argc, char** argv)
       glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
       void* ptr = glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY);
       if (ptr) {
-         draw(static_cast<uint8_t*>(ptr), fbWidth, fbHeight);
+         draw(static_cast<uint8_t*>(ptr), fbWidth, fbHeight, rank);
          if (!glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER)) { std::cerr << "Failed to unmap PBO!" << std::endl;};
       }
       glBindTexture(GL_TEXTURE_2D, texture);
