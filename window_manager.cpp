@@ -1,5 +1,6 @@
 #include "window_manager.h"
 #include <iostream>
+#include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
 void error_callback(int error, const char* description)
@@ -24,6 +25,7 @@ WindowManager::WindowManager(int width, int height, const char* title) : width(w
   }
 
   glfwMakeContextCurrent(window);
+
   glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
   glfwSetKeyCallback(window, keyCallback);
 }
