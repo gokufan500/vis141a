@@ -14,7 +14,10 @@ int main()
 {
   try 
   {
-    WindowManager windowManager(width,height, "glfw default");
+    GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+    const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+
+    WindowManager windowManager(mode->width , mode->height , "glfw default");
     GLFWwindow* window = windowManager.getWindow();
     if (!window)
     {

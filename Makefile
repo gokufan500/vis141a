@@ -1,10 +1,11 @@
 CXX = g++
-CXXFLAGS = -std=c++20 -Wall -O2 -Iinclude
 
 GLFW_LIB = ./glfw-binaries/libglfw3.a
-LDFLAGS = -lGL -ldl -lpthread -lX11 -lXxf86vm -lXrandr -lXi
+GLFW_INC = ./glfw-binaries/include
+LDFLAGS = -lGL -ldl -lpthread -lX11
 
 TARGET = program
+CXXFLAGS = -std=c++20 -Wall -O2 -Iinclude -I$(GLFW_INC)
 
 all: $(TARGET)
 
