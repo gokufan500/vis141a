@@ -9,13 +9,11 @@ void error_callback(int error, const char* description)
 WindowManager::WindowManager(int width, int height, const char* title) : width(width), height(height)
 {
 
-  glfwSetErrorCallback(error_callback);
-  if (!glfwInit()) {
-    throw std::runtime_error("Failed to init GLFW");
-  }
   glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
   glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+  
+
 
   window = glfwCreateWindow(width, height, title, nullptr, nullptr);
 
@@ -27,7 +25,7 @@ WindowManager::WindowManager(int width, int height, const char* title) : width(w
 
   glfwMakeContextCurrent(window);
   glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
-
+  glfwSetKeyCallback(window, keyCallback);
 }
 
 
@@ -37,33 +35,20 @@ WindowManager::~WindowManager()
   {
     glfwDestroyWindow(window);
   }
-  glfwTerminate();
 }
 
-bool WindowManager::shouldClose() const 
-{
-  return glfwWindowShouldClose(window);
-}
-
-void WindowManager::pollEvents() const 
-{
-  glfwPollEvents();
-  if (glfwGetWindowAttrib(window, GLFW_ICONIFIED) != 0)
-  {
-  }
-}
-
-void WindowManager::swapBuffers() const 
-{
-  glfwSwapBuffers(window);
-}
+bool WindowManager::shouldClose() const { return glfwWindowShouldClose(window); }
+void WindowManager::pollEvents() const {  glfwPollEvents(); }
+void WindowManager::swapBuffers() const {  glfwSwapBuffers(window); }
 void WindowManager::framebufferSizeCallback(GLFWwindow* window, int width, int height) 
-{
-  handleFrameBufferResize(window, width, height);
-}
-
-void WindowManager::handleFrameBufferResize(GLFWwindow* window, int width, int height) 
 {
   glViewport(0,0,width,height);
 }
+
+void WindowManager::keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods){
+  if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS){
+    glfwSetWindowShouldClose(window, GLFW_TRUE);
+  }
+}
+
 

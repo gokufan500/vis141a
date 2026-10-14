@@ -14,13 +14,13 @@ class WindowManager
 
     GLFWwindow* getWindow() const {return window;}
 
-    static void framebufferSizeCallback(GLFWwindow* window, int width, int height);
 
   private:
     GLFWwindow* window;
     int width;
     int height;
-    static void handleFrameBufferResize(GLFWwindow* window, int width, int height);
+    static void framebufferSizeCallback(GLFWwindow* window, int width, int height);
+    static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
 
 };
 

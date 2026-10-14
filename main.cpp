@@ -5,20 +5,30 @@
 
 #include "window_manager.h"
 
-int width = 800;
-
-int height = 600;
-
+static void error_callback(int error, const char* description)
+{
+    std::cerr << "glfw error " << error << " : " << description << std::endl;
+}
 
 int main() 
 {
+  glfwSetErrorCallback(error_callback);
+
+  if (!glfwInit()) {
+    std::cerr << " Failed GLFW " << std::endl;
+    return -1;
+  }
+
+  GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+  const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+  int width = mode->width;
+  int height = mode->height;
+
   try 
   {
-    GLFWmonitor* monitor = glfwGetPrimaryMonitor();
-    const GLFWvidmode* mode = glfwGetVideoMode(monitor);
-
-    WindowManager windowManager(mode->width , mode->height , "glfw default");
+    WindowManager windowManager(width , height , "glfw default");
     GLFWwindow* window = windowManager.getWindow();
+    
     if (!window)
     {
       return 0 ;
@@ -39,6 +49,7 @@ int main()
     std::cerr << "Error" << e.what() << std::endl;
     return -1;
   }
+  glfwTerminate();
   return 0;
 }
 
