@@ -1,210 +1,107 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+
 #include <iostream>
-#include <GL/gl.h>
-#include <iomanip>
 
-#ifdef USE_MPI
-  #include <mpi.h>
-#endif
-
+#include "cluster.h"
+#include "renderer.h"
+#include "scene.h"
 #include "window_manager.h"
-#include "shader.h"
 
-static void error_callback(int error, const char* description)
-{
-    std::cerr << "glfw error " << error << " : " << description << std::endl;
+static void error_callback(int error, const char* description) {
+    std::cerr << "glfw error " << error << " : " << description << '\n';
 }
 
-void draw(uint8_t* pixel, int width, int height, int rank ) {
-  // get universe size, assuming 2x2 
-  int u_height = height * 2;
-  int u_width = width * 2;
+int main(int argc, char** argv) {
+    ClusterContext cluster = ClusterContext::init(argc, argv);
+    std::cout << "Hello from process " << cluster.rank
+              << " of " << cluster.size << '\n';
 
-
-
-  for (int y = 0; y < height; ++y) {
-    for (int x = 0; x < width; ++x){
-      size_t idx = (static_cast<size_t>(y) * width + x) * 4;
-      if (rank == 0){
-        // top left, no offset 
-        pixel[idx + 0] = static_cast<uint8_t>(x * 255 / u_width);
-        pixel[idx + 1] = static_cast<uint8_t>(y * 255 / u_height);
-        pixel[idx + 2] = 128;
-        pixel[idx + 3] = 255;
-      }
-      else if (rank == 1) {
-        // top right, offset width 
-        pixel[idx + 0] = static_cast<uint8_t>((x + width) * 255 / u_width);
-        pixel[idx + 1] = static_cast<uint8_t>(y * 255 / u_height);
-        pixel[idx + 2] = 128;
-        pixel[idx + 3] = 255;
-      }
-      else if (rank == 2) {
-        // bottom left, offset height 
-        pixel[idx + 0] = static_cast<uint8_t>(x * 255 / u_width);
-        pixel[idx + 1] = static_cast<uint8_t>((y + height) * 255 / u_height);
-        pixel[idx + 2] = 128;
-        pixel[idx + 3] = 255;
-      }
-      
-      else if (rank == 3) {
-        // bottom right, offset both
-        
-        pixel[idx + 0] = static_cast<uint8_t>((x + width) * 255 / u_width);
-        pixel[idx + 1] = static_cast<uint8_t>((y + height) * 255 / u_height);
-        pixel[idx + 2] = 128;
-        pixel[idx + 3] = 255;
-      }
-      
-      else {
-        pixel[idx + 0] = static_cast<uint8_t>(x * 255 / u_width);
-        pixel[idx + 1] = static_cast<uint8_t>(y * 255 / u_height);
-        pixel[idx + 2] = 128;
-        pixel[idx + 3] = 255;
-      }
+    glfwSetErrorCallback(error_callback);
+    if (!glfwInit()) {
+        std::cerr << "Failed to initialise GLFW\n";
+        cluster.finalize();
+        return -1;
     }
-  }
-}
 
-int main(int argc, char** argv) 
-{
-  #ifdef USE_MPI 
-    MPI_Init(&argc, &argv);
-    int rank, size; 
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
-  #else 
-    int rank = 1, size = 1;
-  #endif 
-  std::cout << "Hello from process " << rank << " of " << size << "\n";
-
-
-  glfwSetErrorCallback(error_callback);
-
-  if (!glfwInit()) {
-    std::cerr << " Failed GLFW " << std::endl;
-    return -1;
-  }
-
-  GLFWmonitor* monitor = glfwGetPrimaryMonitor();
-  const GLFWvidmode* mode = glfwGetVideoMode(monitor);
-  int width = mode->width;
-  int height = mode->height;
-
-  try 
-  {
-    WindowManager windowManager(width , height , "glfw default");
-    GLFWwindow* window = windowManager.getWindow();
-    if (!window) {return 0 ;}
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-      std::cerr << "Failed to initialize glad" << std::endl;
-      return -1;
-    } 
-   
-    // we want framebuffer size since this might differ on high dpi displays 
-    int fbWidth, fbHeight;
-    glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
-
-    // pixel buffer object
-    GLuint pbo = 0; 
-    glGenBuffers(1, &pbo);
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
-    glBufferData(GL_PIXEL_UNPACK_BUFFER, static_cast<GLsizeiptr>(fbWidth) * fbHeight * 4, nullptr, GL_STREAM_DRAW);
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-    
-    // texture 
-    GLuint texture = 0;
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, fbWidth, fbHeight,
-                  0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    // we  create a quad of two triangles to cover the whole screen 
-    // then we can run a fragment shader on each pixel 
-
-    float quadVertices[] = {
-      -1.0f, -1.0f,   1.0f, -1.0f,   1.0f,  1.0f,
-      -1.0f, -1.0f,   1.0f,  1.0f,  -1.0f,  1.0f,
-    };
-    
-    GLuint quadVAO = 0, quadVBO = 0;
-    glGenVertexArrays(1, &quadVAO);
-    glGenBuffers(1, &quadVBO);
-    glBindVertexArray(quadVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-    glBindVertexArray(0);
-    glBindBuffer(GL_ARRAY_BUFFER,0);
-
-    // shader 
-    GLuint shaderProgram = loadShaderProgram("shaders/fullscreen.vert", "shaders/fullscreen.frag");
-    GLint uTextureLoc = glGetUniformLocation(shaderProgram, "uTexture");
-
-    while (!windowManager.shouldClose())
+    int exit_code = 0;
     {
-      windowManager.pollEvents();
-      glClear(GL_COLOR_BUFFER_BIT);
+        // Local monitor resolution drives the window size.
+        GLFWmonitor* monitor     = glfwGetPrimaryMonitor();
+        const GLFWvidmode* mode  = glfwGetVideoMode(monitor);
+        const int width  = mode->width;
+        const int height = mode->height;
 
-      // per frame drawing 
-      glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
-      void* ptr = glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY);
-      if (ptr) {
-         draw(static_cast<uint8_t*>(ptr), fbWidth, fbHeight, rank);
-         if (!glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER)) { std::cerr << "Failed to unmap PBO!" << std::endl;};
-      }
-      glBindTexture(GL_TEXTURE_2D, texture);
-      glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, fbWidth, fbHeight, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-      glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-     
-      // draw full screen quad 
-      glUseProgram(shaderProgram);
-      glActiveTexture(GL_TEXTURE0);
-      glBindTexture(GL_TEXTURE_2D, texture);
-      glUniform1i(uTextureLoc, 0);
-      glBindVertexArray(quadVAO);
-      glDrawArrays(GL_TRIANGLES, 0, 6);
-      GLenum err = glGetError();
-      if (err != GL_NO_ERROR) {
-          std::cerr << "GL error after draw: " << err << std::endl;
-      }
+        WindowManager windowManager(width, height, "glfw default");
+        GLFWwindow* window = windowManager.getWindow();
 
-      glBindVertexArray(0);
-      glUseProgram(0);
+        // If any rank failed to get a window, everyone must bail out together,
+        // otherwise the collective calls below will deadlock.
+        if (!cluster.all_true(window != nullptr)) {
+            glfwTerminate();
+            cluster.finalize();
+            return -1;
+        }
 
-      glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-      glBindTexture(GL_TEXTURE_2D,0);
+        if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+            std::cerr << "Failed to initialise GLAD\n";
+            glfwTerminate();
+            cluster.finalize();
+            return -1;
+        }
 
-      
-      windowManager.swapBuffers();
+        int fbWidth = 0, fbHeight = 0;
+        glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
+        glViewport(0, 0, fbWidth, fbHeight);
+
+        // Every rank now knows its tile size and its offset.
+        cluster.share_tile_dimensions(fbWidth, fbHeight);
+
+        TileInfo tile;
+        tile.local_width   = fbWidth;
+        tile.local_height  = fbHeight;
+        tile.global_width  = cluster.global_width;
+        tile.global_height = cluster.global_height;
+        tile.offset_x      = cluster.tile_offset_x();
+        tile.offset_y      = cluster.tile_offset_y();
+        tile.rank          = cluster.rank;
+        tile.num_processes = cluster.size;
+
+        std::cout << "Rank " << cluster.rank
+                  << "  tile offset=(" << tile.offset_x << "," << tile.offset_y << ")"
+                  << "  tile=" << tile.local_width << "x" << tile.local_height
+                  << "  global=" << tile.global_width << "x" << tile.global_height
+                  << '\n';
+
+        Renderer renderer;
+        if (!renderer.init(fbWidth, fbHeight,
+                           "shaders/fullscreen.vert",
+                           "shaders/fullscreen.frag")) {
+            glfwTerminate();
+            cluster.finalize();
+            return -1;
+        }
+
+        RenderCallback scene_render = [](uint8_t* pixels, const TileInfo& t) {
+            renderGradient(pixels, t);
+        };
+
+        while (!windowManager.shouldClose()) {
+            windowManager.pollEvents();
+            glClear(GL_COLOR_BUFFER_BIT);
+
+            renderer.renderFrame(scene_render, tile);
+
+            windowManager.swapBuffers();
+
+	    // keeps in sync
+            cluster.barrier();
+        }
+
+        renderer.shutdown(); 
     }
-    
-    // cleanup 
-    glDeleteProgram(shaderProgram);
-    glDeleteVertexArrays(1, &quadVAO);
-    glDeleteBuffers(1, &quadVBO);
-    glDeleteTextures(1, &texture);
-    glDeleteBuffers(1, &pbo);
-  } 
-  catch (const std::exception& e)
-  {
-    std::cerr << "Error" << e.what() << std::endl;
-    return -1;
-  }
-   
-  glfwTerminate();
- 
-  #ifdef USE_MPI
-    MPI_Finalize();
-  #endif
-  return 0;
+
+    glfwTerminate();
+    cluster.finalize();
+    return exit_code;
 }
-
-
