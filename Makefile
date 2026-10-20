@@ -9,7 +9,7 @@ endif
 LDFLAGS = -lGL -ldl -lpthread -lX11 -lglfw
 
 TARGET = program
-CXXFLAGS = -std=c++20 -Wall -O2 -Iinclude  $(CXXFLAGS_EXTRA)
+CXXFLAGS = -std=c++20 -Wall -O2 -Iinclude $(CXXFLAGS_EXTRA)
 
 SRCS = $(wildcard src/*.cpp src/*.c)
 

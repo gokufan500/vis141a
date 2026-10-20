@@ -83,7 +83,8 @@ int main(int argc, char** argv) {
         }
 
         RenderCallback scene_render = [](uint8_t* pixels, const TileInfo& t) {
-            renderGradient(pixels, t);
+            //renderGradient(pixels, t);
+            raytracer(pixels, t);
         };
 
         while (!windowManager.shouldClose()) {
