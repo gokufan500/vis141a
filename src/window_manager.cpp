@@ -25,7 +25,7 @@ WindowManager::WindowManager(int width, int height, const char* title) : width(w
   }
 
   glfwMakeContextCurrent(window);
-
+  //glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
   glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
   glfwSetKeyCallback(window, keyCallback);
 }

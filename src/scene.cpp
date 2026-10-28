@@ -1,34 +1,55 @@
 
 #include "scene.h"
-#include "rtweekend.h" 
 
 #include <cstddef>
 #include <iostream>
-#include "hittable.h"
-#include "hittable_list.h"
-#include "sphere.h"
+#include "raytracer/rtweekend.h" 
+#include "raytracer/hittable.h"
+#include "raytracer/hittable_list.h"
+#include "raytracer/sphere.h"
+#include "raytracer/camera.h"
 
 
-using color = vec3;
 
+void raytracer(uint8_t* pixels, const TileInfo& tile){
+  hittable_list world; 
+  world.add(make_shared<sphere>(point3(0,0,-1), 0.5));
+  world.add(make_shared<sphere>(point3(0,-100.5,-1), 100));
+    
+  camera cam;
+  cam.image_width  = static_cast<float>(tile.global_width);
+  cam.image_height = static_cast<float>(tile.global_height); 
+  cam.aspect_ratio = cam.image_width / cam.image_height;
 
-color ray_color(const ray& r, hittable_list world){
-  hit_record rec; 
-  if (world.hit(r,0,infinity, rec)) {
-    return 0.5 * (rec.normal + color(1,1,1));
-  }
-  
-  vec3 unit_direction = unit_vector(r.direction());
-  auto a = 0.5*(unit_direction.y() + 1.0);
-  return (1.0-a)*color(1.0,1.0,1.0) + a*color(0.5,0.7,1.0);
+  cam.samples_per_pixel = 10;
+    
+  cam.render(world, pixels, tile);
+
 }
 
-namespace {
-inline uint8_t to_byte(int v) {
-    return static_cast<uint8_t>(v < 0 ? 0 : (v > 255 ? 255 : v));
-}
-}
+void renderRankColor(uint8_t* pixels, const TileInfo& tile) {
+    // 16 visually distinct colors (from the "Kelly" / Sasha Trubetskoy palette).
+    static const uint8_t kPalette[][3] = {
+        {230,  25,  75}, { 60, 180,  75}, {255, 225,  25}, { 67,  99, 216},
+        {245, 130,  49}, {145,  30, 180}, { 70, 240, 240}, {240,  50, 230},
+        {210, 245,  60}, { 60,  60, 250}, {250, 190, 190}, {  0, 128, 128},
+        {170, 110,  40}, {128,   0,   0}, {128, 128,   0}, {  0,   0, 128},
+    };
+    constexpr int kNumColors = sizeof(kPalette) / sizeof(kPalette[0]);
+    const uint8_t* c = kPalette[tile.rank % kNumColors];
 
+    for (int y = 0; y < tile.local_height; ++y) {
+        for (int x = 0; x < tile.local_width; ++x) {
+            const std::size_t idx =
+                (static_cast<std::size_t>(y) * tile.local_width + x) * 4;
+
+                pixels[idx + 0] = c[0];
+                pixels[idx + 1] = c[1];
+                pixels[idx + 2] = c[2];
+            pixels[idx + 3] = 255;
+        }
+    }
+}
 void renderGradient(uint8_t* pixels, const TileInfo& tile) {
     for (int y = 0; y < tile.local_height; ++y) {
         const int gy = tile.offset_y + y;
@@ -45,59 +66,3 @@ void renderGradient(uint8_t* pixels, const TileInfo& tile) {
     }
 }
 
-void raytracer(uint8_t* pixels, const TileInfo& tile) {
-    float image_width = tile.global_width;
-    float image_height = tile.global_height;
-    float aspect_ratio = image_width / image_height; 
-    //std::cout << "Global width " << tile.global_height << " Global height " << tile.global_width << "\n";
-    //std::cout << "Aspect ratio " << image_width / image_height << "\n";
-    
-
-    hittable_list world; 
-    world.add(make_shared<sphere>(point3(0,0,-1), 0.5));
-    world.add(make_shared<sphere>(point3(0,-100.5,-1), 100));
-
-    // camera 
-    float focal_length = 1.0;
-
-    // virtual height 
-    float viewport_height = 2.0;
-    float viewport_width = viewport_height * aspect_ratio; 
-    
-    // we will use right handed coords 
-    // y axis up x axis right -z axis forward 
-    point3 camera_center = point3(0,0,0);
-
-    // vector across top of viewport, down left side of viewport 
-    vec3 viewport_u = vec3(viewport_width, 0, 0);
-    vec3 viewport_v = vec3(0,-viewport_height, 0);
-
-    // delta between pixels 
-    auto pixel_delta_u = viewport_u / image_width;
-    auto pixel_delta_v = viewport_v / image_height;
-    
-    // find location of top left pixel 
-    auto viewport_upper_left = camera_center - vec3(0, 0, focal_length) - viewport_u/2 - viewport_v/2;
-    auto pixel00_loc = viewport_upper_left +0.5 * (pixel_delta_u + pixel_delta_v);
-
-    for (int y = 0; y < tile.local_height; ++y) {
-        const int gy = tile.offset_y + y;
-        for (int x = 0; x < tile.local_width; ++x) {
-            const int gx = tile.offset_x + x;
-            
-            auto pixel_center = pixel00_loc + (gx * pixel_delta_u) + (gy * pixel_delta_v);
-            auto ray_direction = pixel_center - camera_center; 
-            ray r(camera_center, ray_direction);
-   
-            color pixel_color = ray_color(r, world);
-            
-            const std::size_t idx =
-                (static_cast<std::size_t>(y) * tile.local_width + x) * 4;
-            
-            pixels[idx + 0] = to_byte(static_cast<int>(255.999 * pixel_color[0]));
-            pixels[idx + 1] = to_byte(static_cast<int>(255.999 * pixel_color[1]));
-            pixels[idx + 2] = to_byte(static_cast<int>(255.999 * pixel_color[2]));
-            pixels[idx + 3] = 255;
-        }
-    }
-}

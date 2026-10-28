@@ -1,4 +1,19 @@
 #pragma once
+#include <vector> 
+#include <cstdint> 
+#ifdef USE_MPI 
+  #include <mpi.h>
+#endif
+
+enum class Role {
+  Display,
+  Compute
+};
+
+enum class Group {
+  World, Display, Compute
+};
+
 
 // all mpi logic, made so if we arent compiling with mpi still runs
 struct ClusterContext {
@@ -23,5 +38,31 @@ struct ClusterContext {
     bool all_true(bool local) const;
 
     void barrier() const;
+    void display_barrier() const; 
+    void compute_barrier() const; 
     void finalize() const;
+    void broadcast_int(int& v, int root = 0) const; 
+
+    Role role = Role::Compute;
+
+    #ifdef USE_MPI
+    MPI_Comm display_comm = MPI_COMM_NULL;
+    MPI_Comm compute_comm = MPI_COMM_NULL;
+    #endif 
+    int local_rank = 0;
+    int local_size = 1;
+    int node_display_rank = 0;
+    
+    void share_window_dims(ClusterContext& ctx, int& w, int& h);
+    bool probe_window_ok(ClusterContext& ctx, bool local_ok);
+
+    void send_tile_pixels(const std::vector<uint8_t>& pixels, int tag) const; 
+    void recieve_tile_pixels(int src, int tag, std::vector<uint8_t>& out) const; 
+
+    const std::vector<int>& compute_ranks_on_my_node() const {return peers_;}
+    bool have_compute_peers() const { return !peers_.empty(); }
+  private: 
+    std::vector<int> peers_;
 };
+
+

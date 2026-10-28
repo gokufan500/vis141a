@@ -2,6 +2,7 @@
 #define RTWEEKEND_H 
 
 #include <cmath> 
+#include <cstdlib> 
 #include <iostream>
 #include <limits> 
 #include <memory>
@@ -16,7 +17,21 @@ inline double degrees_to_radians(double degrees) {
   return degrees * pi / 180.0;
 }
 
+namespace {
+  inline uint8_t to_byte(int v) {
+    return static_cast<uint8_t>(v < 0 ? 0 : (v > 255 ? 255 : v));
+  }
+}
+
+inline double random_double() {
+  return std::rand() / (RAND_MAX + 1.0);
+}
+
+inline double random_double(double min, double max){
+  return min + (max-min) * random_double();
+}
+
 #include "ray.h"
 #include "vec3.h" 
-
+#include "interval.h"
 #endif 
