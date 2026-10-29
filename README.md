@@ -6,7 +6,7 @@ make
 make MPI=1
 
 # to run, use 
-mpiexec -np 4 -machinefile paprika_exec ./program
+mpiexec -np 4 -pernode -machinefile paprika_exec -x DISPLAY=:0.0 ./program
 # if you get a glfw 65550 error, glfw cant find displays. to fix run 
 export DISPLAY=:0
 

@@ -1,14 +1,8 @@
 #version 330 core 
-
-layout(location = 0) in vec2 aPos;
-
-out vec2 vUV;
-
+out vec2 v_uv; 
 void main() 
 {
-  // aPos is vector location, which since we are doing full screen should just be corners 
-  // we map [-1,1] to [0,1]
-  // we flip y, so that 0,0 is the top left corner 
-  vUV = vec2((aPos.x + 1.0) * 0.5, 1.0 - (aPos.y + 1.0) * 0.5);
-  gl_Position = vec4(aPos, 0.0, 1.0);
+  vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
+  v_uv = p ;
+  gl_Position = vec4(p*2.0 - 1.0, 0.0, 1.0);
 }

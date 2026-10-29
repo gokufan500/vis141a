@@ -9,34 +9,33 @@
 #include "renderer.h"
 #include "scene.h"
 #include "window_manager.h"
-
-static bool shared_prologue(ClusterContext& cluster);
+#include "gpu_tile.h"
+#include "shader.h"
 
 static int run_display(ClusterContext& cluster);
 static int run_compute(ClusterContext& cluster);
 
 // source, source width, source height, display, width, height, ofsset x offset y 
-static void blit_into(const uint8_t* src, int sw, int sh, 
-                            uint8_t* dst, int dw, int dh, 
-                            int ox, int oy) {
-  const int rows = std::min(sh, dh - oy);
-  const int cols = std::min(sw, dw - ox);
-
-  if (rows <= 0 || cols <= 0) return;
-  for (int y =0; y < rows; ++y) {
-    std::memcpy(dst + ((oy + y) * dw + ox) * 4, src + (y*sw) * 4, static_cast<size_t>(cols) * 4);
-  }
-
-}
 
 static void error_callback(int error, const char* description) {
     std::cerr << "glfw error " << error << " : " << description << '\n';
 }
+static bool shared_prologue(ClusterContext& cluster) {
+    int tile_w = 0, tile_h = 0;
 
-static void drawTile(uint8_t* pixels, const TileInfo& tile) {
-  renderRankColor(pixels, tile);
-  //raytracer(pixels,tile);
-  //renderGradient(pixels,tile);
+    if (cluster.role == Role::Display) {
+        GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+        const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+        if (mode) {
+            tile_w = mode->width  / cluster.grid_cols;
+            tile_h = mode->height / cluster.grid_rows;
+        }
+    }
+
+    cluster.share_window_dims(cluster, tile_w, tile_h);
+    cluster.share_tile_dimensions(tile_w, tile_h);
+
+    return cluster.all_true(tile_w > 0 && tile_h > 0);
 }
 int main(int argc, char** argv) {
     ClusterContext cluster = ClusterContext::init(argc, argv);
@@ -54,13 +53,13 @@ int main(int argc, char** argv) {
 
     
     int exit_code = 0; 
-    if (!shared_prologue(cluster)) {
-      exit_code = -1; 
+    if (!shared_prologue(cluster)){
+      exit_code = -1;
     } else {
-      switch (cluster.role) {
+    switch (cluster.role) {
         case Role::Display: exit_code = run_display(cluster); break; 
         case Role::Compute: exit_code = run_compute(cluster); break;
-      }
+    }
     }
     if (cluster.role == Role::Display) glfwTerminate();
     cluster.finalize();
@@ -69,21 +68,6 @@ int main(int argc, char** argv) {
 }
 
 
-static bool shared_prologue(ClusterContext& cluster) {
-  int tile_w = 0, tile_h = 0; 
-
-  if (cluster.role == Role::Display) {
-    GLFWmonitor* monitor = glfwGetPrimaryMonitor();
-    const GLFWvidmode* mode = glfwGetVideoMode(monitor);
-    if (mode) { 
-      tile_w = mode->width / cluster.grid_cols;
-      tile_h = mode->height / cluster.grid_rows;  
-    }
-  }
-  cluster.share_window_dims(cluster, tile_w, tile_h);
-  cluster.share_tile_dimensions(tile_w, tile_h);
-  return cluster.all_true(tile_w > 0 && tile_h > 0);
-}
 
 
 static int run_display(ClusterContext& cluster) {
@@ -101,7 +85,9 @@ static int run_display(ClusterContext& cluster) {
         int fbWidth = 0, fbHeight = 0;
         glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
         glViewport(0, 0, fbWidth, fbHeight);
-
+std::cerr << "[display] fb=" << fbWidth << "x" << fbHeight
+          << "  win=" << cluster.global_width << "x" << cluster.global_height
+          << "  tile=" << cluster.tile_width << "x" << cluster.tile_height << '\n';
         // tile display does processes for 
         TileInfo tile;
         tile.local_width   = cluster.tile_width;
@@ -113,63 +99,59 @@ static int run_display(ClusterContext& cluster) {
         tile.rank          = cluster.rank;
         tile.num_processes = cluster.size;
         
-        // tile for sending to gpu 
-        TileInfo frameTile = tile;
-        frameTile.local_width  = cluster.global_width; 
-        frameTile.local_height = cluster.global_height; 
-        frameTile.offset_x = 0;
-        frameTile.offset_y = 0;
 
         std::cout << "Rank " << cluster.rank
                   << "  tile offset=(" << tile.offset_x << "," << tile.offset_y << ")"
                   << "  tile=" << tile.local_width << "x" << tile.local_height
                   << "  global=" << tile.global_width << "x" << tile.global_height
                   << '\n';
-
+        // composite.frag composites all tile into window 
         Renderer renderer;
         if (!renderer.init(fbWidth, fbHeight,
                            "shaders/fullscreen.vert",
-                           "shaders/fullscreen.frag")) {
+                           "shaders/render_tile.frag")) {
             return -1;
         }
-        
-        std::vector<uint8_t> myBuf(static_cast<size_t>(cluster.tile_width) * cluster.tile_height * 4);
-        
-        RenderCallback scene_render = [&](uint8_t* pixels, const TileInfo& t) {
-            // rending our own tile 
-            drawTile(myBuf.data(), tile);
-            blit_into(myBuf.data(), cluster.tile_width, cluster.tile_height, 
-                pixels, t.local_width, t.local_height, tile.offset_x, tile.offset_y);
 
-            // get pixels from compute nodes 
-            for (int src : cluster.compute_ranks_on_my_node()){
-              std::vector<uint8_t> peerBuf; // their buffer 
-              cluster.recieve_tile_pixels(src, 0 , peerBuf); 
+        // renders the individual tile 
+        GpuTileRenderer gpu; 
+        if (!gpu.init(tile.local_width, tile.local_height)) return -1;
+        GLuint program = loadShaderProgram("shaders/fullscreen.vert", "shaders/render_tile.frag");
 
-              int px = (src % cluster.grid_cols) * cluster.tile_width; 
-              int py = (src / cluster.grid_cols) * cluster.tile_height; 
-              blit_into(peerBuf.data(), cluster.tile_width, cluster.tile_height, 
-                  pixels, t.local_width, t.local_height, px, py);
-            }
-        };
-        
+        std::vector<uint8_t> myBuf;
+
         int running = 1;
         while (running) {
-            running = !windowManager.shouldClose(); 
-            // display process knows window liftime, so it tells compute process when to die 
+            running = !windowManager.shouldClose();
+
             int flag = running; 
             cluster.broadcast_int(flag, 0);
             if (!flag) break; 
 
             windowManager.pollEvents();
+            gpu.renderAndReadback(tile, program, myBuf);
+            renderer.uploadTile(myBuf.data(), tile.local_width, tile.local_height,
+                                tile.offset_x, tile.offset_y);
+
+            for (int src : cluster.compute_ranks_on_my_node()) {
+                std::vector<uint8_t> peerBuf;
+                cluster.recieve_tile_pixels(src, 0, peerBuf);
+                int px = (src % cluster.grid_cols) * cluster.tile_width;
+                int py = (src / cluster.grid_cols) * cluster.tile_height;
+                renderer.uploadTile(peerBuf.data(),
+                                    cluster.tile_width, cluster.tile_height,
+                                    px, py);
+            }
+
             glClear(GL_COLOR_BUFFER_BIT);
-            renderer.renderFrame(scene_render, frameTile);
+            renderer.renderFrame();
             windowManager.swapBuffers();
             cluster.display_barrier();
         }
-
-        renderer.shutdown(); 
-
+        
+    glDeleteProgram(program);
+    gpu.shutdown();
+    renderer.shutdown(); 
     return 0;
 
 }
@@ -178,8 +160,12 @@ static int run_compute(ClusterContext& cluster){
   
   glfwSetErrorCallback(error_callback);
   if (!glfwInit()) return -1;
-
+  
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+  glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
   glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+ 
   GLFWwindow* window = glfwCreateWindow(64, 64, "offscreen", nullptr, nullptr);
   if (!window) { glfwTerminate(); return -1; }
   glfwMakeContextCurrent(window);
@@ -189,6 +175,7 @@ static int run_compute(ClusterContext& cluster){
     glfwTerminate();
     return -1;
   }
+
   TileInfo tile;
   tile.local_width   = cluster.tile_width;
   tile.local_height  = cluster.tile_height;
@@ -199,14 +186,21 @@ static int run_compute(ClusterContext& cluster){
   tile.rank          = cluster.rank;
   tile.num_processes = cluster.size;
   
-  std::vector<uint8_t> pixels(static_cast<size_t>(tile.local_width) * tile.local_height * 4);
+  GpuTileRenderer gpu;
+    if (!gpu.init(tile.local_width, tile.local_height)) return -1;
+    GLuint program = loadShaderProgram("shaders/fullscreen.vert", "shaders/render_tile.frag");
 
+    std::vector<uint8_t> pixels;
   int running = 1; 
   while (running) {
     cluster.broadcast_int(running, 0); 
     if (!running) break;
-    drawTile(pixels.data(), tile);
+    gpu.renderAndReadback(tile, program, pixels);
     cluster.send_tile_pixels(pixels, 0);
   }
+      glDeleteProgram(program);
+    gpu.shutdown();
+    glfwDestroyWindow(window);
+    glfwTerminate();
   return 0;
 }
