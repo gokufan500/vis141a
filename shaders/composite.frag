@@ -20,23 +20,24 @@ void main() {
     // --- 2. reference gradient, independent of tiles ---
     // If base and grad disagree, the tile shader's u_global/u_offset are wrong.
     vec3 grad = vec3(g.x / dims.x, g.y / dims.y, 0.2);
-    vec3 c    = mix(base, grad, 0.35);
+    vec3 c = base; 
+    //vec3 c    = mix(base, grad, 0.35);
 
     // --- 3. grid: thin lines every 100 texels, bold every 500 ---
     float fw   = max(fwidth(g.x), fwidth(g.y)) * 1.5 + 0.5;
 
     vec2 d100  = abs(mod(g + 50.0, 100.0) - 50.0);
     float l100 = 1.0 - smoothstep(0.0, fw, min(d100.x, d100.y));
-    c          = mix(c, vec3(0.15), l100 * 0.5);
+    //c          = mix(c, vec3(0.15), l100 * 0.5);
 
     vec2 d500  = abs(mod(g + 250.0, 500.0) - 250.0);
     float l500 = 1.0 - smoothstep(0.0, fw * 2.0, min(d500.x, d500.y));
-    c          = mix(c, vec3(1.0), l500 * 0.7);
+    //c          = mix(c, vec3(1.0), l500 * 0.7);
 
     // --- 4. 2px magenta border = exact image bounds ---
-    if (g.x < 2.0 || g.x > dims.x - 2.0 ||
-        g.y < 2.0 || g.y > dims.y - 2.0)
-        c = vec3(1.0, 0.0, 1.0);
+    ///if (g.x < 2.0 || g.x > dims.x - 2.0 ||
+       // g.y < 2.0 || g.y > dims.y - 2.0)
+       //c = vec3(1.0, 0.0, 1.0);
 
     // --- 5. corner markers: 80x80 texel blocks (override border) ---
     const float M = 80.0;

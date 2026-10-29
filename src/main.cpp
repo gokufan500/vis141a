@@ -85,7 +85,7 @@ static int run_display(ClusterContext& cluster) {
         int fbWidth = 0, fbHeight = 0;
         glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
         glViewport(0, 0, fbWidth, fbHeight);
-std::cerr << "[display] fb=" << fbWidth << "x" << fbHeight
+        std::cerr << "[display] fb=" << fbWidth << "x" << fbHeight
           << "  win=" << cluster.global_width << "x" << cluster.global_height
           << "  tile=" << cluster.tile_width << "x" << cluster.tile_height << '\n';
         // tile display does processes for 
@@ -98,6 +98,11 @@ std::cerr << "[display] fb=" << fbWidth << "x" << fbHeight
         tile.offset_y      = cluster.tile_offset_y();
         tile.rank          = cluster.rank;
         tile.num_processes = cluster.size;
+        int vp_x = (cluster.rank % cluster.grid_cols) * cluster.tile_width;
+        int vp_y = (cluster.rank / cluster.grid_cols) * cluster.tile_height;
+        int vp_w = cluster.tile_width;
+        int vp_h = cluster.tile_height;
+        
         
 
         std::cout << "Rank " << cluster.rank
@@ -113,7 +118,6 @@ std::cerr << "[display] fb=" << fbWidth << "x" << fbHeight
             return -1;
         }
 
-        // renders the individual tile 
         GpuTileRenderer gpu; 
         if (!gpu.init(tile.local_width, tile.local_height)) return -1;
         GLuint program = loadShaderProgram("shaders/fullscreen.vert", "shaders/render_tile.frag");
