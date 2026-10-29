@@ -61,9 +61,6 @@ void GpuTileRenderer::renderOnly(const TileInfo& tile, GLuint program){
 
 void GpuTileRenderer::renderAndReadback(const TileInfo& tile, GLuint program, std::vector<uint8_t>& out){
   renderOnly(tile, program);
-  
-  renderOnly(tile, program);
-
   out.resize(static_cast<size_t>(w_) * h_ * 4);
   glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo_);
   glReadBuffer(GL_COLOR_ATTACHMENT0);

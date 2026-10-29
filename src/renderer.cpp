@@ -57,8 +57,15 @@ void Renderer::uploadTile(const uint8_t* pixels, int tw, int th, int ox, int oy)
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     // ox/oy are top-left origin; GL texture origin is bottom-left.
     int yTex = h_ - oy - th;
+   while (glGetError() != GL_NO_ERROR) {} 
     glTexSubImage2D(GL_TEXTURE_2D, 0, ox, yTex, tw, th,
                     GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    GLenum e = glGetError();
+    if (e != GL_NO_ERROR)
+        std::cerr << "uploadTile(" << ox << "," << yTex
+                  << " " << tw << "x" << th
+                  << ") err=0x" << std::hex << e << std::dec
+                  << "  fb=" << w_ << "x" << h_ << "\n";
 }
 
 void Renderer::renderFrame() {

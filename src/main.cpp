@@ -107,9 +107,9 @@ std::cerr << "[display] fb=" << fbWidth << "x" << fbHeight
                   << '\n';
         // composite.frag composites all tile into window 
         Renderer renderer;
-        if (!renderer.init(fbWidth, fbHeight,
+        if (!renderer.init(cluster.global_width, cluster.global_height,
                            "shaders/fullscreen.vert",
-                           "shaders/render_tile.frag")) {
+                           "shaders/composite.frag")) {
             return -1;
         }
 
@@ -130,6 +130,11 @@ std::cerr << "[display] fb=" << fbWidth << "x" << fbHeight
 
             windowManager.pollEvents();
             gpu.renderAndReadback(tile, program, myBuf);
+            //size_t nz = 0;
+            //for (size_t i = 0; i < myBuf.size(); i += 4)
+             //   if (myBuf[i] | myBuf[i+1] | myBuf[i+2]) { nz++; if (nz > 5) break; }
+            //std::cerr << "[display] myBuf=" << myBuf.size()
+             //         << "B nonzero_rgb_samples=" << nz << "\n";
             renderer.uploadTile(myBuf.data(), tile.local_width, tile.local_height,
                                 tile.offset_x, tile.offset_y);
 
