@@ -68,8 +68,38 @@ void Renderer::uploadTile(const uint8_t* pixels, int tw, int th, int ox, int oy)
                   << "  fb=" << w_ << "x" << h_ << "\n";
 }
 
-void Renderer::renderFrame() {
-glViewport(0, 0, w_, h_);
+void Renderer::renderFrame(int fb_w, int fb_h) {
+    if (fb_w <= 0 || fb_h <= 0) { fb_w = w_; fb_h = h_; }
+
+    // --- fit the texture into the framebuffer, preserving aspect ratio ---
+    // (letterbox/pillarbox, centred). If you prefer to stretch, just use
+    // glViewport(0, 0, fb_w, fb_h) and skip the math below.
+    float sx = (float)fb_w / (float)w_;
+    float sy = (float)fb_h / (float)h_;
+    float s  = (sx < sy) ? sx : sy;
+
+    int vpW = (int)(w_ * s + 0.5f);
+    int vpH = (int)(h_ * s + 0.5f);
+    int vpX = (fb_w - vpW) / 2;
+    int vpY = (fb_h - vpH) / 2;
+
+    // Clear the WHOLE framebuffer (letterbox bars too).
+    glViewport(0, 0, fb_w, fb_h);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Draw only in the fitted rect.
+    glViewport(vpX, vpY, vpW, vpH);
+    glUseProgram(program_);
+    glBindVertexArray(vao_);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, tex_);
+    // sampler uniform already bound to unit 0 in init(); no need to repeat.
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glBindVertexArray(0);
+} /*
+void Renderer::renderFrame(int fb_w, int fb_h) {
+glViewport(0, 0, fb_w, fb_h);
     glClear(GL_COLOR_BUFFER_BIT);
     glUseProgram(program_);
     glBindVertexArray(vao_);
@@ -79,7 +109,7 @@ glViewport(0, 0, w_, h_);
     glDrawArrays(GL_TRIANGLES, 0, 3);
     glBindVertexArray(0);
 }
-
+*/
 void Renderer::shutdown() {
 if (program_) { glDeleteProgram(program_);      program_ = 0; }
 if (tex_)     { glDeleteTextures(1, &tex_);     tex_     = 0; }

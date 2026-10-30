@@ -21,12 +21,34 @@ struct ClusterContext {
     int size       = 1;
     int grid_cols  = 1;
     int grid_rows  = 1;
+    
+    int wall_cols = 1; 
+    int wall_rows = 1; 
+    int monitor_width = 0;
+    int monitor_height = 0; 
+    int node_cols = 1;
+    int node_rows = 1; 
 
-    int tile_width    = 0;
-    int tile_height   = 0;
-    int global_width  = 0;
-    int global_height = 0;
+    int tile_width    = monitor_width / node_cols;
+    int tile_height   = monitor_height / node_rows;
+    int global_width  = wall_cols * monitor_width;
+    int global_height = wall_rows * monitor_height; 
 
+    int node_wall_x = 0, node_wall_y = 0;   // this node's monitor in the wall
+    const std::vector<int>& all_compute_ranks() const { return all_compute_ranks_; }
+const std::vector<int>& all_display_ranks() const { return all_display_ranks_; }
+// members:
+    // Per-compute: tile position within this monitor
+    int tile_lx = 0, tile_ly = 0;
+
+    int tile_global_offset_x() const {
+        return (node_wall_x * node_cols + tile_lx) * tile_width;
+    }
+    int tile_global_offset_y() const {
+        return (node_wall_y * node_rows + tile_ly) * tile_height;
+    }
+    int tile_local_offset_x() const { return tile_lx * tile_width;  }
+    int tile_local_offset_y() const { return tile_ly * tile_height; }
     static ClusterContext init(int argc, char** argv);
 
     int tile_offset_x() const { return (rank % grid_cols) * tile_width; }
@@ -63,6 +85,8 @@ struct ClusterContext {
     bool have_compute_peers() const { return !peers_.empty(); }
   private: 
     std::vector<int> peers_;
+    std::vector<int> all_compute_ranks_;
+    std::vector<int> all_display_ranks_;
 };
 
 

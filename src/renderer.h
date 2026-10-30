@@ -12,6 +12,10 @@ struct TileInfo {
     int local_height   = 0;
     int global_width   = 0;   // dimensions of the full tiled image
     int global_height  = 0;
+    int global_offset_x= 0;
+    int global_offset_y= 0;   // for shader (gradient continuity)
+    int local_offset_x = 0;
+    int local_offset_y = 0;    // for composite upload
     int rank           = 0;
     int num_processes  = 1;
 };
@@ -30,7 +34,7 @@ public:
               const std::string& frag_path);
 
     void uploadTile(const uint8_t* pixels, int tw, int th, int ox, int oy);
-    void renderFrame();
+    void renderFrame(int fb_w, int fb_h);
     void shutdown();
 
 

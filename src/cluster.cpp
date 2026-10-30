@@ -41,6 +41,41 @@ ClusterContext ClusterContext::init(int argc, char** argv) {
     ctx.peers_.clear(); 
     for (int w : all_local) if (w != ctx.node_display_rank) ctx.peers_.push_back(w);
 
+
+std::vector<int> is_disp(ctx.size);
+int mine = (ctx.role == Role::Display) ? 1 : 0;
+MPI_Allgather(&mine, 1, MPI_INT, is_disp.data(), 1, MPI_INT, MPI_COMM_WORLD);
+for (int r = 0; r < ctx.size; ++r) {
+    if (is_disp[r]) ctx.all_display_ranks_.push_back(r);
+    else            ctx.all_compute_ranks_.push_back(r);
+}
+// (a) Wall layout: #monitors → cols × rows, roughly square.
+int n_displays = (int)ctx.all_display_ranks_.size();
+ctx.wall_cols = (int)std::ceil(std::sqrt((double)n_displays));
+ctx.wall_rows = (n_displays + ctx.wall_cols - 1) / ctx.wall_cols;
+
+// (b) Node layout: (local_size - 1) computes → cols × rows.
+int n_computes = ctx.local_size - 1;              // display is local_rank 0
+ctx.node_cols = (int)std::ceil(std::sqrt((double)n_computes));
+ctx.node_rows = (n_computes + ctx.node_cols - 1) / ctx.node_cols;
+
+// (c) Display: which monitor in the wall am I?
+if (ctx.role == Role::Display) {
+    int di = 0;
+    MPI_Comm_rank(ctx.display_comm, &di);         // 0..n_displays-1
+    ctx.node_wall_x = di % ctx.wall_cols;
+    ctx.node_wall_y = di / ctx.wall_cols;
+}
+// Broadcast to local computes via node_comm (display is local rank 0)
+MPI_Bcast(&ctx.node_wall_x, 1, MPI_INT, 0, node_comm);
+MPI_Bcast(&ctx.node_wall_y, 1, MPI_INT, 0, node_comm);
+
+// (d) Compute: which tile within this monitor am I?
+if (ctx.role == Role::Compute) {
+    int local_idx = ctx.local_rank - 1;           // 0..n_computes-1
+    ctx.tile_lx = local_idx % ctx.node_cols;
+    ctx.tile_ly = local_idx / ctx.node_cols;
+}
 #else
     (void)argc; (void)argv;
     ctx.role = Role::Display;

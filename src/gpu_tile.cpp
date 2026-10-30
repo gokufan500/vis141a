@@ -49,7 +49,7 @@ void GpuTileRenderer::renderOnly(const TileInfo& tile, GLuint program){
   glUniform2f(glGetUniformLocation(program, "u_global"),
               (float)tile.global_width, (float)tile.global_height);
   glUniform2f(glGetUniformLocation(program, "u_offset"),
-              (float)tile.offset_x, (float)tile.offset_y);
+              (float)tile.global_offset_x, (float)tile.global_offset_y);
   glUniform1i(glGetUniformLocation(program, "u_rank"), tile.rank);
 
   glBindVertexArray(vao_);
