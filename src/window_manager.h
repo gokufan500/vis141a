@@ -5,7 +5,7 @@
 class WindowManager 
 {
   public:
-    WindowManager(int width, int height, const char* title);
+    WindowManager(int width, int height, const char* title, bool fullscreen = false);;
     ~WindowManager();
 
     bool shouldClose() const;

@@ -11,33 +11,10 @@ Renderer::~Renderer() {
     // Call shutdown() explicitly before the window is destroyed.
 }
 
-bool Renderer::init(int fb_width, int fb_height,
+bool Renderer::init(
                     const std::string& vert_path,
                     const std::string& frag_path)
 {
-    fb_width_  = fb_width;
-    fb_height_ = fb_height;
-
-    // pixel buffer object 
-    glGenBuffers(1, &pbo_);
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo_);
-    glBufferData(GL_PIXEL_UNPACK_BUFFER,
-                 static_cast<GLsizeiptr>(fb_width) * fb_height * 4,
-                 nullptr, GL_STREAM_DRAW);
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-
-    // texture pbo uses 
-    glGenTextures(1, &texture_);
-    glBindTexture(GL_TEXTURE_2D, texture_);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, fb_width, fb_height,
-                 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    // use two triangles to create a square over screen
     const float quad_vertices[] = {
         -1.0f, -1.0f,   1.0f, -1.0f,   1.0f, 1.0f,
         -1.0f, -1.0f,   1.0f,  1.0f,  -1.0f, 1.0f,
@@ -52,13 +29,16 @@ bool Renderer::init(int fb_width, int fb_height,
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-    // shader is simple just takes color from texture
     shader_program_ = loadShaderProgram(vert_path, frag_path);
     if (shader_program_ == 0) {
         std::cerr << "Failed to load shader program\n";
         return false;
     }
-    u_texture_loc_ = glGetUniformLocation(shader_program_, "uTexture");
+    u_tileOffset_ = glGetUniformLocation(shader_program_, "uTileOffset");
+    u_tileSize_   = glGetUniformLocation(shader_program_, "uTileSize");
+    u_globalSize_ = glGetUniformLocation(shader_program_, "uGlobalSize");
+    u_tileIndex_  = glGetUniformLocation(shader_program_, "uTileIndex");
+    u_gridSize_   = glGetUniformLocation(shader_program_, "uGridSize");
     return true;
 }
 
@@ -66,40 +46,21 @@ void Renderer::shutdown() {
     if (shader_program_) glDeleteProgram(shader_program_);
     if (quad_vao_)       glDeleteVertexArrays(1, &quad_vao_);
     if (quad_vbo_)       glDeleteBuffers(1, &quad_vbo_);
-    if (texture_)        glDeleteTextures(1, &texture_);
-    if (pbo_)            glDeleteBuffers(1, &pbo_);
-    shader_program_ = quad_vao_ = quad_vbo_ = texture_ = pbo_ = 0;
-    u_texture_loc_ = -1;
+    shader_program_ = quad_vao_ = quad_vbo_ = 0;
 }
 
-void Renderer::renderFrame(const RenderCallback& render, const TileInfo& tile) {
-    // fill pbo, this is all of our drawing logic in render
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo_);
-    if (void* ptr = glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY)) {
-        render(static_cast<uint8_t*>(ptr), tile);
-        if (!glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER)) {
-            std::cerr << "Failed to unmap PBO!\n";
-        }
-    } else {
-        std::cerr << "Failed to map PBO!\n";
-    }
-
-    // upload pbo to gpu 
-    glBindTexture(GL_TEXTURE_2D, texture_);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, fb_width_, fb_height_,
-                    GL_RGBA, GL_UNSIGNED_BYTE, 0);
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-
-    // draw the quad
+void Renderer::renderFrame(const TileInfo& tile) {
     glUseProgram(shader_program_);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, texture_);
-    glUniform1i(u_texture_loc_, 0);
+    glUniform2f(u_tileOffset_, (float)tile.offset_x,     (float)tile.offset_y);
+    glUniform2f(u_tileSize_,   (float)tile.tile_width,   (float)tile.tile_height);
+    glUniform2f(u_globalSize_, (float)tile.global_width, (float)tile.global_height);
+    glUniform2f(u_tileIndex_,  (float)tile.tile_col,     (float)tile.tile_row);
+    glUniform2f(u_gridSize_,   (float)tile.grid_cols,    (float)tile.grid_rows);
+
     glBindVertexArray(quad_vao_);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
     glUseProgram(0);
-    glBindTexture(GL_TEXTURE_2D, 0);
 
     if (GLenum err = glGetError(); err != GL_NO_ERROR) {
         std::cerr << "GL error after draw: " << err << '\n';

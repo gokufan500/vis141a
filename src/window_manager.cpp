@@ -7,16 +7,16 @@ void error_callback(int error, const char* description)
 {
   std::cerr << "glfw error " << error << " : " << description << std::endl;
 }
-WindowManager::WindowManager(int width, int height, const char* title) : width(width), height(height)
+WindowManager::WindowManager(int width, int height, const char* title, bool fullscreen) : width(width), height(height)
 {
 
   glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
   glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-  
-
   glfwWindowHint(GLFW_DECORATED,GLFW_FALSE);
-  window = glfwCreateWindow(width, height, title, nullptr, nullptr);
+
+  GLFWmonitor* monitor = fullscreen ? glfwGetPrimaryMonitor() : nullptr;
+  window = glfwCreateWindow(width, height, title, monitor, nullptr);
 
   if (!window)
   {
