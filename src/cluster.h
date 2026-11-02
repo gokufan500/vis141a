@@ -24,6 +24,9 @@ struct ClusterContext {
     int  local_rank = 0;
     int  local_size = 1;
 
+    int node_display_rank = 0;
+    const std::vector<int>& peers_on_my_node() const {return peers_;}
+
 #ifdef USE_MPI
     MPI_Comm display_comm = MPI_COMM_NULL;
     MPI_Comm compute_comm = MPI_COMM_NULL;
@@ -41,4 +44,6 @@ struct ClusterContext {
     void broadcast_int(int& v, int root = 0) const;
     void barrier() const;
     void finalize() const;
+  private: 
+    std::vector<int> peers_;
 };

@@ -28,6 +28,19 @@ ClusterContext ClusterContext::init(int argc, char** argv) {
 
     MPI_Comm_split(MPI_COMM_WORLD, color, ctx.rank, (ctx.role == Role::Display) ? &ctx.display_comm : &ctx.compute_comm);
     
+    int first_world_rank = MPI_PROC_NULL;
+    MPI_Allreduce(&ctx.rank, &first_world_rank, 1, MPI_INT, MPI_MIN, node_comm);
+
+    int display_local_rank = 0;
+    MPI_Bcast(&display_local_rank, 1, MPI_INT, 0, node_comm);
+    ctx.node_display_rank = first_world_rank + display_local_rank;
+
+    std::vector<int> all_local(ctx.local_size);
+    MPI_Allgather(&ctx.rank, 1, MPI_INT, all_local.data(), 1, MPI_INT, node_comm);
+    ctx.peers_.clear();
+    for (int w : all_local)
+      if (w != ctx.node_display_rank) ctx.peers_.push_back(w);
+
     if (ctx.role == Role::Display) {
       MPI_Comm_rank(ctx.display_comm, &ctx.display_rank);
     }
@@ -38,9 +51,6 @@ ClusterContext ClusterContext::init(int argc, char** argv) {
 
     ctx.grid_cols = static_cast<int>(std::ceil(std::sqrt((double)display_count)));
     ctx.grid_rows = (display_count + ctx.grid_cols - 1) / ctx.grid_cols;
-
-    (void) argc; (void) argv; 
-    ctx.role = Role::Display;
 
 #else
     (void)argc; (void)argv;
