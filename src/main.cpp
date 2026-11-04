@@ -105,7 +105,7 @@ static int run_display(ClusterContext& cluster) {
         Renderer renderer;
         if (!renderer.init(
                            "shaders/fullscreen.vert",
-                           "shaders/fullscreen.frag")) {
+                           "shaders/clouds.frag")) {
             return -1;
         }
         
