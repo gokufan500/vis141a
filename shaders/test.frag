@@ -7,6 +7,7 @@ uniform vec2 uTileSize;    // size of this tile in pixels
 uniform vec2 uGlobalSize;  // total wall size in pixels
 uniform vec2 uTileIndex;   // (col, row) of this tile
 uniform vec2 uGridSize;    // (cols, rows)
+uniform float u_time;
 
 vec3 hsv2rgb(vec3 c) {
     vec4 K = vec4(1.0, 2.0/3.0, 1.0/3.0, 3.0);
@@ -21,7 +22,7 @@ void main() {
     vec2 uv       = globalPx / uGlobalSize;   // 0..1 across the entire wall
 
     // Continuous rainbow across the whole wall
-    float hue = fract((uv.x + uv.y) * 0.5);
+    float hue = fract((uv.x + uv.y) * 0.5 + 0.25 * sin(u_time * 0.5));
     vec3 col  = hsv2rgb(vec3(hue, 0.9, 1.0));
 
     // Large checker so alignment is obvious

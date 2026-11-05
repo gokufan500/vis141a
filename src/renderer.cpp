@@ -39,6 +39,7 @@ bool Renderer::init(
     u_globalSize_ = glGetUniformLocation(shader_program_, "uGlobalSize");
     u_tileIndex_  = glGetUniformLocation(shader_program_, "uTileIndex");
     u_gridSize_   = glGetUniformLocation(shader_program_, "uGridSize");
+    u_time_       = glGetUniformLocation(shader_program_, "u_time");
     return true;
 }
 
@@ -49,14 +50,14 @@ void Renderer::shutdown() {
     shader_program_ = quad_vao_ = quad_vbo_ = 0;
 }
 
-void Renderer::renderFrame(const TileInfo& tile) {
+void Renderer::renderFrame(const TileInfo& tile, float time_seconds) {
     glUseProgram(shader_program_);
     glUniform2f(u_tileOffset_, (float)tile.offset_x,     (float)tile.offset_y);
     glUniform2f(u_tileSize_,   (float)tile.tile_width,   (float)tile.tile_height);
     glUniform2f(u_globalSize_, (float)tile.global_width, (float)tile.global_height);
     glUniform2f(u_tileIndex_,  (float)tile.tile_col,     (float)tile.tile_row);
     glUniform2f(u_gridSize_,   (float)tile.grid_cols,    (float)tile.grid_rows);
-
+    glUniform1f(u_time_,       time_seconds);            // <-- new
     glBindVertexArray(quad_vao_);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);

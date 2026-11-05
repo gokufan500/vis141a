@@ -105,10 +105,13 @@ static int run_display(ClusterContext& cluster) {
         Renderer renderer;
         if (!renderer.init(
                            "shaders/fullscreen.vert",
-                           "shaders/clouds.frag")) {
+                           "shaders/fbm.frag")) {
             return -1;
         }
-        
+        //auto now = std::chrono::steady_clock::now().time_since_epoch();
+        //float t = std::chrono::duration<float>(now).count();
+        const float start_time = (float)glfwGetTime();
+
         int running = 1;
         while (running) {
             running = !wm.shouldClose(); 
@@ -119,7 +122,10 @@ static int run_display(ClusterContext& cluster) {
 
             wm.pollEvents();
             glClear(GL_COLOR_BUFFER_BIT);
-            renderer.renderFrame(tile);
+
+            const float t = (float)glfwGetTime() - start_time;
+
+            renderer.renderFrame(tile, t);
             wm.swapBuffers();
         }
 

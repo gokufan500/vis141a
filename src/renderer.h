@@ -32,7 +32,7 @@ public:
     // Must be called while the GL context is still alive.
     void shutdown();
 
-    void renderFrame(const TileInfo& tile);
+    void renderFrame(const TileInfo& tile, float time_seconds);
 
 private:
     GLuint shader_program_ = 0;
@@ -44,4 +44,6 @@ private:
     GLint u_globalSize_ = -1;
     GLint u_tileIndex_  = -1;
     GLint u_gridSize_   = -1;
+
+    GLint u_time_ = glGetUniformLocation(shader_program_, "u_time");
 };
