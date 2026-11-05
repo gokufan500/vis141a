@@ -1,8 +1,8 @@
-ifeq ($(MPI),1)
+ifeq ($(MPI),0)
 	CXX = mpic++
 	CXXFLAGS_EXTRA = -DUSE_MPI
 else 
-	CXX = ccache g++
+	CXX = g++
 	CXXFLAGS_EXTRA = 
 endif
 
